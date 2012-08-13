@@ -1,27 +1,5 @@
 package com.github.cwilper.fcrepo.cloudsync.service.backend;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.List;
-import java.util.Map;
-
-import org.apache.commons.io.IOUtils;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.mime.HttpMultipartMode;
-import org.apache.http.entity.mime.MultipartEntity;
-import org.apache.http.entity.mime.content.FileBody;
-import org.apache.http.util.EntityUtils;
-import org.openrdf.model.Value;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.github.cwilper.fcrepo.cloudsync.api.ObjectInfo;
 import com.github.cwilper.fcrepo.cloudsync.api.ObjectStore;
 import com.github.cwilper.fcrepo.cloudsync.service.util.JSON;
@@ -38,6 +16,41 @@ import com.github.cwilper.fcrepo.httpclient.HttpClientConfig;
 import com.github.cwilper.fcrepo.riclient.RIClient;
 import com.github.cwilper.fcrepo.riclient.RIQueryResult;
 import com.github.cwilper.ttff.Filter;
+import org.apache.commons.io.IOUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpException;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpRequestInterceptor;
+import org.apache.http.HttpResponse;
+import org.apache.http.auth.AuthScheme;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.AuthState;
+import org.apache.http.auth.Credentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.protocol.ClientContext;
+import org.apache.http.entity.mime.HttpMultipartMode;
+import org.apache.http.entity.mime.MultipartEntity;
+import org.apache.http.entity.mime.content.FileBody;
+import org.apache.http.impl.auth.BasicScheme;
+import org.apache.http.protocol.BasicHttpContext;
+import org.apache.http.protocol.ExecutionContext;
+import org.apache.http.protocol.HttpContext;
+import org.apache.http.util.EntityUtils;
+import org.openrdf.model.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.List;
+import java.util.Map;
 
 public class FedoraConnector extends StoreConnector {
     
@@ -54,6 +67,7 @@ public class FedoraConnector extends StoreConnector {
         String password = StringUtil.validate("password", map.get("password"));
         httpClient = new FedoraHttpClient(httpClientConfig,
                 URI.create(url), username, password);
+        setPreemptiveAuth(httpClient);
         riClient = new RIClient(httpClient);
     }
 
@@ -244,4 +258,38 @@ public class FedoraConnector extends StoreConnector {
             result.close();
         }
     }
+
+    // http://stackoverflow.com/questions/2014700/preemptive-basic-authentication-with-apache-httpclient-4
+    private void setPreemptiveAuth(FedoraHttpClient httpClient) {
+        this.localContext = new BasicHttpContext();
+        BasicScheme basicAuth = new BasicScheme();
+        localContext.setAttribute("preemptive-auth", basicAuth);
+        httpClient.addRequestInterceptor(new PreemptiveAuthInterceptor(), 0);
+    }
+
+    static class PreemptiveAuthInterceptor implements HttpRequestInterceptor {
+
+        public void process(final HttpRequest request, final HttpContext context) throws HttpException, IOException {
+            AuthState authState = (AuthState) context.getAttribute(ClientContext.TARGET_AUTH_STATE);
+
+            // If no auth scheme avaialble yet, try to initialize it
+            // preemptively
+            if (authState.getAuthScheme() == null) {
+                AuthScheme authScheme = (AuthScheme) context.getAttribute("preemptive-auth");
+                CredentialsProvider credsProvider = (CredentialsProvider) context.getAttribute(ClientContext.CREDS_PROVIDER);
+                HttpHost targetHost = (HttpHost) context.getAttribute(ExecutionContext.HTTP_TARGET_HOST);
+                if (authScheme != null) {
+                    Credentials creds = credsProvider.getCredentials(new AuthScope(targetHost.getHostName(), targetHost.getPort()));
+                    if (creds == null) {
+                        throw new HttpException("No credentials for preemptive authentication");
+                    }
+                    authState.setAuthScheme(authScheme);
+                    authState.setCredentials(creds);
+                }
+            }
+
+        }
+
+}
+
 }

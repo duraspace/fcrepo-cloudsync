@@ -14,7 +14,9 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.entity.FileEntity;
+import org.apache.http.protocol.BasicHttpContext;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +29,8 @@ import java.util.Iterator;
 public abstract class StoreConnector {
 
     private static final Logger logger = LoggerFactory.getLogger(StoreConnector.class);
+    
+    protected BasicHttpContext localContext = null;
 
     public static StoreConnector getInstance(ObjectStore store, HttpClientConfig httpClientConfig) {
         if (store.getType().equals("fedora")) {
@@ -53,11 +57,11 @@ public abstract class StoreConnector {
         }
     }
 
-    protected static boolean headCheck(HttpClient httpClient, String url) {
+    protected boolean headCheck(HttpClient httpClient, String url) {
         logger.debug("Doing HEAD request on " + url);
         HttpHead head = new HttpHead(url);
         try {
-            HttpResponse response = httpClient.execute(head);
+            HttpResponse response = execute(httpClient, head);
             int responseCode = response.getStatusLine().getStatusCode();
             logger.debug("responseCode: " + responseCode);
             return responseCode == 200;
@@ -67,7 +71,7 @@ public abstract class StoreConnector {
     }
 
     // returns null if 404
-    protected static String getString(HttpClient httpClient, String url) {
+    protected String getString(HttpClient httpClient, String url) {
         try {
             HttpEntity entity = get(httpClient, url);
             if (entity == null) return null;
@@ -78,7 +82,7 @@ public abstract class StoreConnector {
     }
 
     // returns null if 404
-    protected static InputStream getStream(HttpClient httpClient, String url) {
+    protected InputStream getStream(HttpClient httpClient, String url) {
         try {
             HttpEntity entity = get(httpClient, url);
             if (entity == null) return null;
@@ -89,11 +93,11 @@ public abstract class StoreConnector {
     }
 
     // returns null if 404
-    protected static HttpEntity get(HttpClient httpClient, String url) throws IOException {
+    protected HttpEntity get(HttpClient httpClient, String url) throws IOException {
         logger.debug("Doing GET request on " + url);
         HttpGet get = new HttpGet(url);
         try {
-            HttpResponse response = httpClient.execute(get);
+            HttpResponse response = execute(httpClient, get);
             int responseCode = response.getStatusLine().getStatusCode();
             if (responseCode == 404) {
                 return null;
@@ -106,12 +110,12 @@ public abstract class StoreConnector {
         }
     }
 
-    protected static void delete(HttpClient httpClient, String url) {
+    protected void delete(HttpClient httpClient, String url) {
         logger.debug("Doing DELETE request on " + url);
         HttpDelete delete = new HttpDelete(url);
         HttpEntity entity = null;
         try {
-            HttpResponse response = httpClient.execute(delete);
+            HttpResponse response = execute(httpClient, delete);
             entity = response.getEntity();
             int responseCode = response.getStatusLine().getStatusCode();
             if (responseCode != 200 && responseCode != 204) {
@@ -129,14 +133,14 @@ public abstract class StoreConnector {
         }
     }
 
-    protected static void post(HttpClient httpClient, String url, File file, String mimeType) {
+    protected void post(HttpClient httpClient, String url, File file, String mimeType) {
         logger.debug("Doing POST request on " + url);
         HttpPost post = new HttpPost(url);
         HttpEntity entity = null;
         try {
             post.setHeader("Content-type", mimeType);
             post.setEntity(new FileEntity(file, mimeType));
-            HttpResponse response = httpClient.execute(post);
+            HttpResponse response = execute(httpClient, post);
             entity = response.getEntity();
             int responseCode = response.getStatusLine().getStatusCode();
             if (responseCode < 200 || responseCode > 204) {
@@ -154,7 +158,7 @@ public abstract class StoreConnector {
         }
     }
 
-    protected static void put(HttpClient httpClient, String url, File file, String mimeType) {
+    protected void put(HttpClient httpClient, String url, File file, String mimeType) {
         logger.debug("Doing PUT request on " + url);
         HttpPut put = new HttpPut(url);
         HttpEntity entity = null;
@@ -163,7 +167,7 @@ public abstract class StoreConnector {
                 mimeType = "application/octet-stream";
             }
             put.setEntity(new FileEntity(file, mimeType));
-            HttpResponse response = httpClient.execute(put);
+            HttpResponse response = execute(httpClient, put);
             entity = response.getEntity();
             int responseCode = response.getStatusLine().getStatusCode();
             if (responseCode != 200 && responseCode != 201 && responseCode != 204) {
@@ -178,6 +182,15 @@ public abstract class StoreConnector {
                 } catch (Exception e) {
                 }
             }
+        }
+    }
+
+    // executes a request with the localContext, if set
+    private HttpResponse execute(HttpClient client, HttpUriRequest request) throws IOException {
+        if (localContext != null) {
+            return client.execute(request, localContext);
+        } else {
+            return client.execute(request);
         }
     }
 

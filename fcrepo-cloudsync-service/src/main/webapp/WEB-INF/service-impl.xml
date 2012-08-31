@@ -6,7 +6,7 @@
 http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security-3.0.xsd">
 
   <bean id="serviceImpl"
-        class="com.github.cwilper.fcrepo.cloudsync.service.CloudSyncServiceImpl">
+        class="org.duraspace.fcrepo.cloudsync.service.CloudSyncServiceImpl">
     <constructor-arg ref="dataSource"/>
     <constructor-arg ref="transactionManager"/>
     <constructor-arg ref="httpClientConfig"/>

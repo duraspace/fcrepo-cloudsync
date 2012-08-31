@@ -7,8 +7,8 @@
     <version>5</version>
   </parent>
 
-  <groupId>com.github.cwilper.fcrepo-cloudsync</groupId>
-  <artifactId>parent</artifactId>
+  <groupId>org.duraspace.fcrepo-cloudsync</groupId>
+  <artifactId>fcrepo-cloudsync</artifactId>
   <version>1.0.1-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>Fedora CloudSync Project</name>
@@ -35,12 +35,12 @@
   </licenses>
 
   <scm>
-    <url>https://github.com/cwilper/fcrepo-cloudsync</url>
+    <url>https://github.com/duraspace/fcrepo-cloudsync</url>
     <connection>
-      scm:git:git://github.com/cwilper/fcrepo-cloudsync.git
+      scm:git:git://github.com/duraspace/fcrepo-cloudsync.git
     </connection>
     <developerConnection>
-      scm:git:git@github.com:cwilper/fcrepo-cloudsync.git
+      scm:git:git@github.com:duraspace/fcrepo-cloudsync.git
     </developerConnection>
   </scm>
 
@@ -100,13 +100,13 @@
       </dependency>
 
       <dependency>
-        <groupId>com.github.cwilper.fcrepo-cloudsync</groupId>
+        <groupId>org.duraspace.fcrepo-cloudsync</groupId>
         <artifactId>fcrepo-cloudsync-api</artifactId>
         <version>${project.version}</version>
       </dependency>
 
       <dependency>
-        <groupId>com.github.cwilper.fcrepo-cloudsync</groupId>
+        <groupId>org.duraspace.fcrepo-cloudsync</groupId>
         <artifactId>fcrepo-cloudsync-service</artifactId>
         <version>${project.version}</version>
       </dependency>
@@ -477,7 +477,7 @@
       <id>release-site</id>
       <properties>
         <site.id>gh-pages</site.id>
-        <site.url>gitsite:git@github.com/cwilper/fcrepo-cloudsync.git</site.url>
+        <site.url>gitsite:git@github.com/duraspace/fcrepo-cloudsync.git</site.url>
       </properties>
     </profile>
 

@@ -31,7 +31,7 @@
     </menu>
     <menu name="Modules" ref="modules"/>
     <menu name="Links" inherit="bottom">
-      <item name="GitHub Repository" href="https://github.com/cwilper/fcrepo-cloudsync"/>
+      <item name="GitHub Repository" href="https://github.com/duraspace/fcrepo-cloudsync"/>
       <item name="Fedora Commons" href="http://fedora-commons.org/"/>
       <item name="DuraCloud" href="http://duracloud.org/"/>
       <item name="DuraSpace" href="http://duraspace.org/"/>

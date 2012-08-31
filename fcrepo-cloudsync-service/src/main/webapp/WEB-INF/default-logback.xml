@@ -13,7 +13,7 @@
   <!-- Ignore canonicalization WARNings -->
   <logger name="com.github.cwilper.fcrepo.dto.core.InlineXML" additivity="false" level="ERROR"/>
   <!-- Show all INFO, WARNING, and ERROR level messages originating from this app -->
-  <logger name="com.github.cwilper.fcrepo.cloudsync" additivity="false" level="INFO">
+  <logger name="org.duraspace.fcrepo.cloudsync" additivity="false" level="INFO">
     <appender-ref ref="FILE"/>
   </logger>
   <!-- Show only WARNings and ERRORs for everything else -->

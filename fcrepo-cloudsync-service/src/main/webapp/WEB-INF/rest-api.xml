@@ -88,31 +88,31 @@ http://www.springframework.org/schema/util http://www.springframework.org/schema
   </bean>
   
   <bean id="serviceResource"
-        class="com.github.cwilper.fcrepo.cloudsync.service.rest.ServiceResource">
+        class="org.duraspace.fcrepo.cloudsync.service.rest.ServiceResource">
     <constructor-arg ref="serviceImpl"/>
   </bean>
   <bean id="userResource"
-        class="com.github.cwilper.fcrepo.cloudsync.service.rest.UserResource">
+        class="org.duraspace.fcrepo.cloudsync.service.rest.UserResource">
     <constructor-arg ref="serviceImpl"/>
   </bean>
   <bean id="taskResource"
-        class="com.github.cwilper.fcrepo.cloudsync.service.rest.TaskResource">
+        class="org.duraspace.fcrepo.cloudsync.service.rest.TaskResource">
     <constructor-arg ref="serviceImpl"/>
   </bean>
   <bean id="objectSetResource"
-        class="com.github.cwilper.fcrepo.cloudsync.service.rest.ObjectSetResource">
+        class="org.duraspace.fcrepo.cloudsync.service.rest.ObjectSetResource">
     <constructor-arg ref="serviceImpl"/>
   </bean>
   <bean id="objectStoreResource"
-        class="com.github.cwilper.fcrepo.cloudsync.service.rest.ObjectStoreResource">
+        class="org.duraspace.fcrepo.cloudsync.service.rest.ObjectStoreResource">
     <constructor-arg ref="serviceImpl"/>
   </bean>
   <bean id="taskLogResource"
-        class="com.github.cwilper.fcrepo.cloudsync.service.rest.TaskLogResource">
+        class="org.duraspace.fcrepo.cloudsync.service.rest.TaskLogResource">
     <constructor-arg ref="serviceImpl"/>
   </bean>
   <bean id="duraCloudResource"
-        class="com.github.cwilper.fcrepo.cloudsync.service.rest.DuraCloudResource">
+        class="org.duraspace.fcrepo.cloudsync.service.rest.DuraCloudResource">
     <constructor-arg ref="serviceImpl"/>
   </bean>
 

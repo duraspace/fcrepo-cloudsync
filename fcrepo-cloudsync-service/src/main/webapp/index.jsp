@@ -301,6 +301,59 @@
   </table>
 </div>
 
+<div class="ui-helper-hidden" id="dialog-EditPidPattern" title="Edit PID Pattern">
+  <input type="hidden" id="EditPidPattern-uri"/>
+  <table>
+    <tr>
+      <td>Name</td>
+      <td><input id="EditPidPattern-name" type="text" value=""/></td>
+    </tr>
+    <tr>
+      <td>Pattern (* is wildcard)</td>
+      <td><input id="EditPidPattern-data" type="text" value=""/></td>
+    </tr>
+  </table>
+</div>
+
+<div class="ui-helper-hidden" id="dialog-EditPidList" title="Edit PID List">
+  <input type="hidden" id="EditPidList-uri"/>
+  <table>
+    <tr>
+      <td>Name</td>
+      <td><input id="EditPidList-name" type="text" value=""/></td>
+    </tr>
+    <tr>
+      <td>PIDs (one per line)</td>
+      <td>
+        <textarea id="EditPidList-data" rows="10" cols="20"></textarea>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="ui-helper-hidden" id="dialog-EditQuery" title="Edit Query">
+  <input type="hidden" id="EditQuery-uri"/>
+  <table>
+    <tr>
+      <td>Name</td>
+      <td><input id="EditQuery-name" type="text" value=""/></td>
+    </tr>
+    <tr>
+      <td>Query Type</td>
+      <td><select id="EditQuery-queryType">
+        <option>iTQL</option>
+        <option selected="selected">SPARQL</option>
+      </select></td>
+    </tr>
+    <tr>
+      <td>Query Text</td>
+      <td>
+        <textarea id="EditQuery-queryText" rows="10" cols="40"></textarea>
+      </td>
+    </tr>
+  </table>
+</div>
+
 <!-- Stores -->
 
 <div class="ui-helper-hidden" id="dialog-NewStore" title="New Store">

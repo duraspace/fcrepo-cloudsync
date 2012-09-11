@@ -253,10 +253,42 @@ function doDeleteObjectSet(uri, name) {
   });
 }
 
+function doEditObjectSet(uri, name) {
+  service.getObjectSet(uri,
+    function(response) {
+      var set = response.objectSet;
+      if (set.type == "pidPattern") {
+        $("#EditPidPattern-uri").val(uri);
+        $("#EditPidPattern-name").val(set.name);
+        $("#EditPidPattern-data").val(set.data);
+        $("#dialog-EditPidPattern").dialog("open");
+      } else if (set.type == "pidList") {
+        $("#EditPidList-uri").val(uri);
+        $("#EditPidList-name").val(set.name);
+        $("#EditPidList-data").val(set.data);
+        $("#dialog-EditPidList").dialog("open");
+      } else if (set.type == "query") {
+        $("#EditQuery-uri").val(uri);
+        $("#EditQuery-name").val(set.name);
+        var data = $.parseJSON(set.data);
+        $("#EditQuery-queryType").change(data.queryType);
+        $("#EditQuery-queryText").val(data.queryText);
+        $("#dialog-EditQuery").dialog("open");
+      } else {
+        showError("Unrecognized Set type: " + set.type);
+      }
+    },
+    true,
+    function(httpRequest, method, url) {
+        handleServiceError(httpRequest, method, url);
+    });
+}
+
 function getPidPatternSetHtml(item) {
   var html = "";
   if (item.type == "pidPattern") {
     html += "<div class='item-actions'>";
+    html += "  <button onClick='doEditObjectSet(\"" + item.uri + "\", \"" + esc(item.name) + "\");'>Edit</button>";
     html += "  <button onClick='doDeleteObjectSet(\"" + item.uri + "\", \"" + esc(item.name) + "\");'>Delete</button>";
     html += "</div>";
     html += "<div><table>";
@@ -270,6 +302,7 @@ function getPidListSetHtml(item) {
   var html = "";
   if (item.type == "pidList") {
     html += "<div class='item-actions'>";
+    html += "  <button onClick='doEditObjectSet(\"" + item.uri + "\", \"" + esc(item.name) + "\");'>Edit</button>";
     html += "  <button onClick='doDeleteObjectSet(\"" + item.uri + "\", \"" + esc(item.name) + "\");'>Delete</button>";
     html += "</div>";
     html += "<div><table>";
@@ -284,6 +317,7 @@ function getQuerySetHtml(item) {
   if (item.type == "query") {
     var data = $.parseJSON(item.data);
     html += "<div class='item-actions'>";
+    html += "  <button onClick='doEditObjectSet(\"" + item.uri + "\", \"" + esc(item.name) + "\");'>Edit</button>";
     html += "  <button onClick='doDeleteObjectSet(\"" + item.uri + "\", \"" + esc(item.name) + "\");'>Delete</button>";
     html += "</div>";
     html += "<div><table>";
@@ -774,6 +808,83 @@ $(function() {
         }};
         service.createObjectSet(data, function() {
           $("#dialog-NewQuery").dialog("close");
+          refreshSets();
+        },
+        true,
+        handleNameCollision);
+      }
+    }
+  });
+
+  $("#dialog-EditPidPattern").dialog({
+    autoOpen: false,
+    modal: true,
+    width: 'auto',
+    show: 'fade',
+    hide: 'fade',
+    buttons: {
+      Save: function() {
+        var uri = $("#EditPidPattern-uri").val();
+        var data = { objectSet: {
+          "name": $("#EditPidPattern-name").val(),
+          "type": "pidPattern",
+          "data": $("#EditPidPattern-data").val()
+        }};
+        service.updateObjectSet(uri, data,
+          function() {
+            $("#dialog-EditPidPattern").dialog("close");
+            refreshSets();
+          },
+          true,
+          handleNameCollision);
+      }
+    }
+  });
+
+  $("#dialog-EditPidList").dialog({
+    autoOpen: false,
+    modal: true,
+    width: 'auto',
+    show: 'fade',
+    hide: 'fade',
+    buttons: {
+      Save: function() {
+        var uri = $("#EditPidList-uri").val();
+        var data = { objectSet: {
+          "name": $("#EditPidList-name").val(),
+          "type": "pidList",
+          "data": $("#EditPidList-data").val()
+        }};
+        service.updateObjectSet(uri, data, function() {
+          $("#dialog-EditPidList").dialog("close");
+          refreshSets();
+        },
+        true,
+        handleNameCollision);
+      }
+    }
+  });
+
+  $("#dialog-EditQuery").dialog({
+    autoOpen: false,
+    modal: true,
+    width: 'auto',
+    show: 'fade',
+    hide: 'fade',
+    buttons: {
+      Save: function() {
+        var uri = $("#EditQuery-uri").val();
+        var typeSpecificData = {
+          "queryType": $("#EditQuery-queryType").val(),
+          "queryText": $("#EditQuery-queryText").val()
+        };
+        var data = { objectSet: {
+          "name": $("#EditQuery-name").val(),
+          "type": "query",
+          "data": JSON.stringify(typeSpecificData)
+        }};
+        service.updateObjectSet(uri, data, function() {
+          $("#dialog-EditQuery").dialog("close");
           refreshSets();
         },
         true,

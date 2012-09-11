@@ -262,6 +262,21 @@ public class CloudSyncServiceImpl implements CloudSyncService {
         return result;
     }
 
+    
+    @Override
+    public ObjectSet updateObjectSet(String id, ObjectSet objectSet)
+            throws ResourceNotFoundException, NameConflictException {
+        try {
+            ObjectSet result = objectSetDao.updateObjectSet(id, objectSet);
+            if (result == null) {
+                throw new ResourceNotFoundException("No such user: " + id);
+            }
+            return result;
+        } catch (DuplicateKeyException e) {
+            throw new NameConflictException("Set name is already in use", e);
+        }
+    }
+
     @Override
     public void deleteObjectSet(String id) throws ResourceInUseException {
         try {

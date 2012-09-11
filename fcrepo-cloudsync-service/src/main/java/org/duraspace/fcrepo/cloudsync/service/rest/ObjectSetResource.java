@@ -24,6 +24,7 @@ import org.duraspace.fcrepo.cloudsync.api.NameConflictException;
 import org.duraspace.fcrepo.cloudsync.api.ObjectSet;
 import org.duraspace.fcrepo.cloudsync.api.ResourceInUseException;
 import org.duraspace.fcrepo.cloudsync.api.ResourceNotFoundException;
+import org.duraspace.fcrepo.cloudsync.service.util.PATCH;
 
 @Path("objectSets")
 public class ObjectSetResource extends AbstractResource {
@@ -59,6 +60,29 @@ public class ObjectSetResource extends AbstractResource {
             ObjectSet newObjectSet = service.createObjectSet(objectSet);
             setUri(uriInfo, req, newObjectSet);
             return Response.created(newObjectSet.getUri()).entity(newObjectSet).build();
+        } catch (NameConflictException e) {
+            throw new WebApplicationException(e, Response.Status.CONFLICT);
+        }
+    }
+
+    @PATCH
+    @Path("{id}")
+    @Consumes({OBJECTSET_JSON, OBJECTSET_XML})
+    @Produces({JSON, XML, OBJECTSET_JSON, OBJECTSET_XML})
+    @Descriptions({
+        @Description(value = "Updates an object set", target = DocTarget.METHOD),
+        @Description(value = STATUS_200_OK, target = DocTarget.RESPONSE)
+    })
+    public ObjectSet updateObjectSet(@Context UriInfo uriInfo,
+            @Context HttpServletRequest req,
+            @PathParam("id") String id,
+            ObjectSet objectSet) {
+        try {
+            ObjectSet updatedObjectSet = service.updateObjectSet(id, objectSet);
+            setUri(uriInfo, req, updatedObjectSet);
+            return updatedObjectSet;
+        } catch (ResourceNotFoundException e) {
+            throw new WebApplicationException(e, Response.Status.NOT_FOUND);
         } catch (NameConflictException e) {
             throw new WebApplicationException(e, Response.Status.CONFLICT);
         }

@@ -133,6 +133,10 @@ function CloudSyncClient(serviceUri) {
     doGet(uri, OBJECTSET_JSON, success, async, error);
   };
 
+  this.updateObjectSet = function(uri, data, success, async, error) {
+    doPatch(uri, OBJECTSET_JSON, data, success, async, error);
+  };
+
   this.deleteObjectSet = function(uri, success, async, error) {
     doDelete(uri, success, async, error);
   };

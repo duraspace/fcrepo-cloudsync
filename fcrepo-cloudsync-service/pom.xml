@@ -4,7 +4,7 @@
   <parent>
     <groupId>org.duraspace.fcrepo-cloudsync</groupId>
     <artifactId>fcrepo-cloudsync</artifactId>
-    <version>1.1.0</version>
+    <version>1.1.1-SNAPSHOT</version>
   </parent>
 
   <artifactId>fcrepo-cloudsync-service</artifactId>

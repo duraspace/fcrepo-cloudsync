@@ -123,7 +123,7 @@ public class FilesystemConnector extends StoreConnector {
             }
             // write foxml
             foxmlFile = getFile(o.pid(), null, null);
-            foxmlFile.getParentFile().mkdirs();
+            mkdir(foxmlFile.getParentFile());
             out = new FileOutputStream(foxmlFile);
             writer.writeObject(o, out);
             out.close();
@@ -134,6 +134,13 @@ public class FilesystemConnector extends StoreConnector {
         } catch (IOException e) {
             IOUtils.closeQuietly(out);
             throw new RuntimeException(e);
+        }
+    }
+
+    private void mkdir(File dir) throws IOException {
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new IOException("Directory does not exist and can not be " +
+                                      "created: " + dir.getAbsolutePath());
         }
     }
 

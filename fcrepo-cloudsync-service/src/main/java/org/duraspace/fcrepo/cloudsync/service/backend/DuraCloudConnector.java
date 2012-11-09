@@ -1,6 +1,7 @@
 package org.duraspace.fcrepo.cloudsync.service.backend;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -20,6 +22,12 @@ import javax.xml.parsers.ParserConfigurationException;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
+import org.duracloud.chunk.ChunkableContent;
+import org.duracloud.chunk.manifest.ChunksManifest;
+import org.duracloud.chunk.manifest.ChunksManifestBean;
+import org.duracloud.chunk.manifest.xml.ManifestDocumentBinding;
+import org.duracloud.chunk.stream.ChunkInputStream;
+import org.duraspace.fcrepo.cloudsync.service.backend.chunk.MultiChunkInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -45,6 +53,7 @@ import com.github.cwilper.ttff.Filter;
 public class DuraCloudConnector extends StoreConnector {
 
     private static final int CHUNKSIZE = 999;
+    private static final long MAX_CONTENT_CHUNK_SIZE = 1073741824; // one GB
     private static final Logger logger = 
             LoggerFactory.getLogger(DuraCloudConnector.class);
 
@@ -190,20 +199,12 @@ public class DuraCloudConnector extends StoreConnector {
                              Set<String> urls) throws IOException {
         for (DatastreamVersion dsv: ds.versions()) {
             InputStream in = source.getContent(o,  ds, dsv);
-            File tempFile = File.createTempFile("cloudsync", null);
-            OutputStream out = new FileOutputStream(tempFile);
+            File tempFile = copyToTempFile(in);
+
             try {
-                // copy content to local temporary file first
-                try {
-                    IOUtils.copyLarge(in,  out);
-                } finally {
-                    IOUtils.closeQuietly(in);
-                    IOUtils.closeQuietly(out);
-                }
-                // then send it to the remote destination
-                String url = getContentURI(o.pid() + "+" + ds.id() + "+" + dsv.id());
-                put(httpClient, url, tempFile, dsv.mimeType());
-                urls.add(url);
+                String contentId = o.pid() + "+" + ds.id() + "+" + dsv.id();
+                putChunks(tempFile, contentId, dsv.mimeType(), urls);
+
             } finally {
                 // finally, delete the local copy
                 if (!tempFile.delete()) {
@@ -211,6 +212,81 @@ public class DuraCloudConnector extends StoreConnector {
                 }
             }
         }
+    }
+
+    private void putChunks(File tempFile,
+                           String contentId,
+                           String mimeType,
+                           Set<String> urls) throws IOException {
+        logger.debug("Uploading content: {}", contentId);
+
+        // Send to remote location if the file is small enough
+        if (tempFile.length() <= MAX_CONTENT_CHUNK_SIZE) {
+            putFile(tempFile, contentId, mimeType, urls);
+
+        } else {
+            // Split into chunks before sending, since file is too large
+            FileInputStream inputStream = new FileInputStream(tempFile);
+            ChunkableContent chunkable = new ChunkableContent(contentId,
+                                                              mimeType,
+                                                              inputStream,
+                                                              tempFile.length(),
+                                                              MAX_CONTENT_CHUNK_SIZE);
+
+            // Send each chunk
+            for (ChunkInputStream chunk : chunkable) {
+                putStream(chunk, chunk.getChunkId(), chunk.getMimetype(), urls);
+            }
+
+            // Send the chunks manifest
+            ChunksManifest manifest = chunkable.finalizeManifest();
+            putStream(manifest.getBody(),
+                      manifest.getManifestId(),
+                      manifest.getMimetype(),
+                      urls);
+        }
+    }
+
+    private void putFile(File file,
+                         String contentId,
+                         String mimeType,
+                         Set<String> urls) {
+        logger.debug("Uploading content: {}", contentId);
+
+        String url = getContentURI(contentId);
+        put(httpClient, url, file, mimeType);
+        urls.add(url);
+    }
+
+    private void putStream(InputStream inputStream,
+                           String contentId,
+                           String mimeType,
+                           Set<String> urls) throws IOException {
+        // Copy content to local temporary file first
+        File file = copyToTempFile(inputStream);
+        try {
+            // Then send it to the remote destination
+            putFile(file, contentId, mimeType, urls);
+
+        } finally {
+            // finally, delete the local copy
+            if (!file.delete()) {
+                logger.warn("Failed to delete temporary file {}", file);
+            }
+        }
+    }
+
+    private File copyToTempFile(InputStream in) throws IOException{
+        File file = File.createTempFile("cloudsync", null);
+        OutputStream out = new FileOutputStream(file);
+
+        try {
+            IOUtils.copy(in, out);
+        } finally {
+            IOUtils.closeQuietly(in);
+            IOUtils.closeQuietly(out);
+        }
+        return file;
     }
 
     private String getContentURI(String contentId) {
@@ -228,8 +304,69 @@ public class DuraCloudConnector extends StoreConnector {
 
     @Override
     public InputStream getContent(FedoraObject o, Datastream ds, DatastreamVersion dsv) {
-        String url = getContentURI(o.pid() + "+" + ds.id() + "+" + dsv.id());
-        return getStream(httpClient, url);
+        String contentId = o.pid() + "+" + ds.id() + "+" + dsv.id();
+        String url = getContentURI(contentId);
+
+        // Try to retrieve simple content
+        InputStream content = getStream(httpClient, url);
+        if (null != content) {
+            logger.debug("Returning simple content: {}", contentId);
+            return content;
+        }
+
+        // Content does not exist, see if it was chunked
+        String manifestId = contentId + ChunksManifest.manifestSuffix;
+        String manifestUrl = getContentURI(manifestId);
+
+        InputStream manifestStream = getStream(httpClient, manifestUrl);
+        if (null == manifestStream) {
+            // No manifest, no chunks
+            logger.info("No content found for: {}", contentId);
+            return null;
+        }
+
+        // Deserialize manifest
+        ChunksManifest manifest = null;
+        try {
+            manifest =
+                ManifestDocumentBinding.createManifestFrom(manifestStream);
+        } catch (Exception e) {
+            String msg = "Error deserializing manifest!";
+            logger.error(msg);
+        }
+
+        InputStream result = null;
+        if (null != manifest) {
+            logger.debug("Reading chunks from manifest: {}", manifestId);
+
+            // Sort chunks by their index
+            Map<Integer, String> sortedChunks = new TreeMap<Integer, String>();
+            for (ChunksManifestBean.ManifestEntry entry : manifest.getEntries()) {
+                sortedChunks.put(entry.getIndex(), entry.getChunkId());
+            }
+
+            // Collect ordered sequence of chunks
+            List<String> chunks = new ArrayList<String>();
+            for (String chunkId : sortedChunks.values()) {
+                chunks.add(chunkId);
+            }
+
+            if (chunks.size() == 0) {
+                String msg = "No chunks found in: " + manifestId + "!";
+                logger.error(msg);
+                result = null;
+            } else {
+                result = new MultiChunkInputStream(this, chunks);
+            }
+        }
+        return result;
+    }
+
+    public InputStream getStream(String contentId) {
+        logger.debug("Downloading content: {}", contentId);
+
+        String url = getContentURI(contentId);
+        return super.getStream(httpClient, url);
     }
 
     @Override

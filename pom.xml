@@ -55,6 +55,7 @@
 
   <properties>
     <fcrepo-misc.version>1.0.0</fcrepo-misc.version>
+    <duracloud.version>2.1.2</duracloud.version>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -74,7 +75,8 @@
     <artifactId>${project.artifactId}</artifactId>
     <currentVersion>${project.version}</currentVersion>
 
-    <maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss 'UTC'Z</maven.build.timestamp.format>                            <timestamp>${maven.build.timestamp}</timestamp>
+    <maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss 'UTC'Z</maven.build.timestamp.format>
+    <timestamp>${maven.build.timestamp}</timestamp>
   </properties>
 
   <dependencyManagement>
@@ -109,6 +111,12 @@
         <groupId>org.duraspace.fcrepo-cloudsync</groupId>
         <artifactId>fcrepo-cloudsync-service</artifactId>
         <version>${project.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.duracloud</groupId>
+        <artifactId>chunk</artifactId>
+        <version>${duracloud.version}</version>
       </dependency>
 
       <dependency>
@@ -243,6 +251,13 @@
         <groupId>org.springframework.security</groupId>
         <artifactId>spring-security-web</artifactId>
         <version>3.0.5.RELEASE</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.easymock</groupId>
+        <artifactId>easymock</artifactId>
+        <version>3.1</version>
+        <scope>test</scope>
       </dependency>
 
     </dependencies>

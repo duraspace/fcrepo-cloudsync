@@ -254,7 +254,27 @@ public class DuraCloudConnector extends StoreConnector {
         logger.debug("Uploading content: {}", contentId);
 
         String url = getContentURI(contentId);
-        put(httpClient, url, file, mimeType);
+        int sleep = 15000;
+        for (int i = 0; ; i ++) {
+            try {
+                put(httpClient, url, file, mimeType);
+                break;
+            } catch (RuntimeException ex) {
+                if (i < 5) {
+                    logger.info("Exception while putting file (attempt " + (i + 1) + " of 5)", ex);
+                    try {
+                        logger.debug("Sleeping " + sleep + "ms. before retry...");
+                        Thread.sleep(sleep);
+                    } catch (InterruptedException iex) {
+                        logger.debug("Sleep interrupted!");
+                    }
+                    sleep *= 5;
+                } else {
+                    // no more retries left
+                    throw ex;
+                }
+            }
+        }
         urls.add(url);
     }
 

@@ -8,6 +8,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.StringReader;
 import java.net.URI;
+import java.security.DigestInputStream;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -27,6 +31,7 @@ import org.duracloud.chunk.manifest.ChunksManifest;
 import org.duracloud.chunk.manifest.ChunksManifestBean;
 import org.duracloud.chunk.manifest.xml.ManifestDocumentBinding;
 import org.duracloud.chunk.stream.ChunkInputStream;
+import org.duracloud.common.util.ChecksumUtil;
 import org.duraspace.fcrepo.cloudsync.service.backend.chunk.MultiChunkInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,10 +57,11 @@ import com.github.cwilper.ttff.Filter;
 
 public class DuraCloudConnector extends StoreConnector {
 
+    private static final Logger logger = LoggerFactory.getLogger(
+        DuraCloudConnector.class);
+
     private static final int CHUNKSIZE = 999;
-    private static final long MAX_CONTENT_CHUNK_SIZE = 1073741824; // one GB
-    private static final Logger logger = 
-            LoggerFactory.getLogger(DuraCloudConnector.class);
+    private long MAX_CONTENT_CHUNK_SIZE = 1073741824; // one GB
 
     private final URI spaceURI;
     private final String providerId;
@@ -91,6 +97,21 @@ public class DuraCloudConnector extends StoreConnector {
         httpClient.getCredentialsProvider().setCredentials(
                 new AuthScope(spaceURI.getHost(), port),
                 new UsernamePasswordCredentials(username, password));
+    }
+
+    /**
+     * For unit testing.
+     */
+    public DuraCloudConnector(URI spaceURI,
+                              String providerId,
+                              String prefix,
+                              MultiThreadedHttpClient httpClient,
+                              long contentChunkSize) {
+        this.spaceURI = spaceURI;
+        this.providerId = providerId;
+        this.prefix = prefix;
+        this.httpClient = httpClient;
+        this.MAX_CONTENT_CHUNK_SIZE = contentChunkSize;
     }
 
     @Override
@@ -135,7 +156,7 @@ public class DuraCloudConnector extends StoreConnector {
         }
         FOXMLWriter writer = new FOXMLWriter();
         File tempFile = null;
-        OutputStream out = null;
+        DigestOutputStream out = null;
         try {
             // convert E/R datastreams to managed, if needed
             for (Datastream ds: o.datastreams().values()) {
@@ -147,11 +168,15 @@ public class DuraCloudConnector extends StoreConnector {
             }
             // write foxml to temp file
             tempFile = File.createTempFile("cloudsync", null);
-            out = new FileOutputStream(tempFile);
+            OutputStream fileOut = new FileOutputStream(tempFile);
+            MessageDigest digest = createMd5Digest();
+            out = new DigestOutputStream(fileOut, digest);
+
             writer.writeObject(o, out);
             out.close();
             // upload managed datastream content and foxml to DuraCloud
-            putObject(o, source, tempFile);
+            String md5 = ChecksumUtil.checksumBytesToString(digest.digest());
+            putObject(o, source, tempFile, md5);
             return existed;
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -163,17 +188,26 @@ public class DuraCloudConnector extends StoreConnector {
             writer.close();
         }
     }
-   
+
+    private MessageDigest createMd5Digest() {
+        try {
+            return MessageDigest.getInstance("MD5");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("'MD5' should be valid!?", e);
+        }
+    }
+
     private void putObject(FedoraObject o,
                            StoreConnector source,
-                           File foxmlFile) throws IOException {
+                           File foxmlFile,
+                           String md5) throws IOException {
         boolean success = false;
         Set<String> uris = new HashSet<String>();
         try {
             String oURI = getContentURI(o.pid());
             uris.add(oURI);
-            put(httpClient, oURI, foxmlFile, "application/xml");
-            for (Datastream ds: o.datastreams().values()) {
+            put(httpClient, oURI, foxmlFile, "application/xml", md5);
+            for (Datastream ds : o.datastreams().values()) {
                 if (ds.controlGroup().equals(ControlGroup.MANAGED)) {
                     putVersions(o, ds, source, uris);
                 }
@@ -192,18 +226,18 @@ public class DuraCloudConnector extends StoreConnector {
             }
         }
     }
-    
+
     private void putVersions(FedoraObject o,
                              Datastream ds,
                              StoreConnector source,
                              Set<String> urls) throws IOException {
-        for (DatastreamVersion dsv: ds.versions()) {
-            InputStream in = source.getContent(o,  ds, dsv);
-            File tempFile = copyToTempFile(in);
-
+        for (DatastreamVersion dsv : ds.versions()) {
+            InputStream in = source.getContent(o, ds, dsv);
+            File tempFile = File.createTempFile("cloudsync", null);
+            String md5 = copyToTempFile(in, tempFile);
             try {
                 String contentId = o.pid() + "+" + ds.id() + "+" + dsv.id();
-                putChunks(tempFile, contentId, dsv.mimeType(), urls);
+                putChunks(tempFile, contentId, dsv.mimeType(), md5, urls);
 
             } finally {
                 // finally, delete the local copy
@@ -217,12 +251,13 @@ public class DuraCloudConnector extends StoreConnector {
     private void putChunks(File tempFile,
                            String contentId,
                            String mimeType,
+                           String md5,
                            Set<String> urls) throws IOException {
         logger.debug("Uploading content: {}", contentId);
 
         // Send to remote location if the file is small enough
         if (tempFile.length() <= MAX_CONTENT_CHUNK_SIZE) {
-            putFile(tempFile, contentId, mimeType, urls);
+            putFile(tempFile, contentId, mimeType, md5, urls);
 
         } else {
             // Split into chunks before sending, since file is too large
@@ -250,6 +285,7 @@ public class DuraCloudConnector extends StoreConnector {
     private void putFile(File file,
                          String contentId,
                          String mimeType,
+                         String md5,
                          Set<String> urls) {
         logger.debug("Uploading content: {}", contentId);
 
@@ -257,7 +293,7 @@ public class DuraCloudConnector extends StoreConnector {
         int sleep = 15000;
         for (int i = 0; ; i ++) {
             try {
-                put(httpClient, url, file, mimeType);
+                put(httpClient, url, file, mimeType, md5);
                 break;
             } catch (RuntimeException ex) {
                 if (i < 5) {
@@ -283,10 +319,11 @@ public class DuraCloudConnector extends StoreConnector {
                            String mimeType,
                            Set<String> urls) throws IOException {
         // Copy content to local temporary file first
-        File file = copyToTempFile(inputStream);
+        File file = File.createTempFile("cloudsync", null);
+        String md5 = copyToTempFile(inputStream, file);
         try {
             // Then send it to the remote destination
-            putFile(file, contentId, mimeType, urls);
+            putFile(file, contentId, mimeType, md5, urls);
 
         } finally {
             // finally, delete the local copy
@@ -296,17 +333,38 @@ public class DuraCloudConnector extends StoreConnector {
         }
     }
 
-    private File copyToTempFile(InputStream in) throws IOException{
-        File file = File.createTempFile("cloudsync", null);
-        OutputStream out = new FileOutputStream(file);
+    /**
+     * @param in      source inputstream
+     * @param tmpFile destination file
+     * @return MD5 of file
+     * @throws IOException on error
+     */
+    private String copyToTempFile(InputStream in, File tmpFile)
+        throws IOException {
+        MessageDigest digest = createMd5Digest();
 
+        DigestInputStream digestStream = new DigestInputStream(in, digest);
+        OutputStream out = new FileOutputStream(tmpFile);
+        copy(digestStream, out);
+
+        return ChecksumUtil.checksumBytesToString(digest.digest());
+    }
+
+    private File copyToTempFile(InputStream in) throws IOException {
+        File tmpFile = File.createTempFile("cloudsync", null);
+        OutputStream out = new FileOutputStream(tmpFile);
+
+        copy(in, out);
+        return tmpFile;
+    }
+
+    private void copy(InputStream in, OutputStream out) throws IOException {
         try {
             IOUtils.copy(in, out);
         } finally {
             IOUtils.closeQuietly(in);
             IOUtils.closeQuietly(out);
         }
-        return file;
     }
 
     private String getContentURI(String contentId) {

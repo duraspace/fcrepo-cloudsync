@@ -158,14 +158,16 @@ public abstract class StoreConnector {
         }
     }
 
-    protected void put(HttpClient httpClient, String url, File file, String mimeType) {
-        logger.debug("Doing PUT request on " + url);
+    protected void put(HttpClient httpClient, String url, File file, String mimeType, String md5) {
+        logger.debug("Doing PUT request on {} (md5: {})", url, md5);
         HttpPut put = new HttpPut(url);
         HttpEntity entity = null;
         try {
             if (mimeType == null || mimeType.trim().length() == 0) {
                 mimeType = "application/octet-stream";
             }
+            put.setHeader("Content-Type", mimeType);
+            put.setHeader("Content-MD5", md5);
             put.setEntity(new FileEntity(file, mimeType));
             HttpResponse response = execute(httpClient, put);
             entity = response.getEntity();
